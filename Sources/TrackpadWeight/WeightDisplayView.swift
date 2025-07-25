@@ -20,27 +20,36 @@ class WeightDisplayView: NSView {
     }
     
     private func setupUI() {
+        let theme = ThemeManager.shared
+        
         // Main weight display
         weightLabel = NSTextField(labelWithString: "0.0")
-        weightLabel.font = NSFont.systemFont(ofSize: 48, weight: .light)
+        weightLabel.font = theme.displayFont(size: 48)
         weightLabel.alignment = .center
-        weightLabel.textColor = .labelColor
+        weightLabel.textColor = theme.primaryTextColor()
         
         // Unit label
         unitLabel = NSTextField(labelWithString: "grams")
-        unitLabel.font = NSFont.systemFont(ofSize: 16, weight: .medium)
+        unitLabel.font = theme.titleFont(size: 16)
         unitLabel.alignment = .center
-        unitLabel.textColor = .secondaryLabelColor
+        unitLabel.textColor = theme.secondaryTextColor()
         
         // Calibrate button
         calibrateButton = NSButton(title: "Calibrate Scale", target: self, action: #selector(calibratePressed))
         calibrateButton.bezelStyle = .rounded
+        calibrateButton.font = theme.primaryFont(size: 14)
         
         // Status label
         statusLabel = NSTextField(labelWithString: "Place items on trackpad to weigh")
-        statusLabel.font = NSFont.systemFont(ofSize: 12)
+        statusLabel.font = theme.captionFont(size: 12)
         statusLabel.alignment = .center
-        statusLabel.textColor = .tertiaryLabelColor
+        statusLabel.textColor = theme.tertiaryTextColor()
+        
+        // Configure accessibility
+        theme.configureAccessibility(for: weightLabel, label: "Current weight reading", hint: "The current weight measurement in grams")
+        theme.configureAccessibility(for: unitLabel, label: "Weight unit", hint: "Weight is measured in grams")
+        theme.configureAccessibility(for: calibrateButton, label: "Calibrate scale", hint: "Press to zero the scale and calibrate for accurate measurements")
+        theme.configureAccessibility(for: statusLabel, label: "Status message", hint: "Instructions and current status of the scale")
         
         // Add subviews
         addSubview(weightLabel)
@@ -54,6 +63,7 @@ class WeightDisplayView: NSView {
         }
         
         setupConstraints()
+        setupThemeNotifications()
     }
     
     private func setupConstraints() {
@@ -83,6 +93,7 @@ class WeightDisplayView: NSView {
     
     func updateWeight(_ weight: Double) {
         currentWeight = weight
+        let theme = ThemeManager.shared
         
         // Format weight display with edge case handling
         weightLabel.stringValue = formatWeight(weight)
@@ -90,10 +101,10 @@ class WeightDisplayView: NSView {
         // Update status based on weight
         if weight < 0.1 {
             statusLabel.stringValue = "Place items on trackpad to weigh"
-            weightLabel.textColor = .tertiaryLabelColor
+            weightLabel.textColor = theme.tertiaryTextColor()
         } else {
             statusLabel.stringValue = "Current weight measurement"
-            weightLabel.textColor = .labelColor
+            weightLabel.textColor = theme.primaryTextColor()
         }
         
         // Add visual feedback for weight changes
@@ -160,7 +171,46 @@ class WeightDisplayView: NSView {
     override func awakeFromNib() {
         super.awakeFromNib()
         wantsLayer = true
-        layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+        applyCurrentTheme()
+    }
+    
+    private func setupThemeNotifications() {
+        NotificationCenter.default.addObserver(
+            forName: .themeDidChange,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyCurrentTheme()
+        }
+    }
+    
+    private func applyCurrentTheme() {
+        let theme = ThemeManager.shared
+        
+        // Update background
+        layer?.backgroundColor = theme.backgroundColor().cgColor
+        
+        // Update fonts and colors
+        weightLabel.font = theme.displayFont(size: 48)
+        weightLabel.textColor = currentWeight < 0.1 ? theme.tertiaryTextColor() : theme.primaryTextColor()
+        
+        unitLabel.font = theme.titleFont(size: 16)
+        unitLabel.textColor = theme.secondaryTextColor()
+        
+        statusLabel.font = theme.captionFont(size: 12)
+        statusLabel.textColor = theme.tertiaryTextColor()
+        
+        calibrateButton.font = theme.primaryFont(size: 14)
+        calibrateButton.applyTheme()
+        
+        // Update border and corner radius for high contrast
+        if theme.isHighContrast() {
+            layer?.borderColor = theme.borderColor().cgColor
+            layer?.borderWidth = theme.borderWidth()
+            layer?.cornerRadius = theme.cornerRadius()
+        } else {
+            layer?.borderWidth = 0
+        }
     }
 }
 
