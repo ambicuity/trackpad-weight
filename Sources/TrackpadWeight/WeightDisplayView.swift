@@ -84,14 +84,8 @@ class WeightDisplayView: NSView {
     func updateWeight(_ weight: Double) {
         currentWeight = weight
         
-        // Format weight display
-        if weight < 1.0 {
-            weightLabel.stringValue = String(format: "%.2f", weight)
-        } else if weight < 10.0 {
-            weightLabel.stringValue = String(format: "%.1f", weight)
-        } else {
-            weightLabel.stringValue = String(format: "%.0f", weight)
-        }
+        // Format weight display with edge case handling
+        weightLabel.stringValue = formatWeight(weight)
         
         // Update status based on weight
         if weight < 0.1 {
@@ -104,6 +98,28 @@ class WeightDisplayView: NSView {
         
         // Add visual feedback for weight changes
         animateWeightChange()
+    }
+    
+    private func formatWeight(_ weight: Double) -> String {
+        // Handle special values
+        if weight.isNaN {
+            return "---"
+        }
+        if weight.isInfinite {
+            return weight > 0 ? "∞" : "-∞"
+        }
+        
+        // Use absolute value for formatting logic, then add sign back
+        let absWeight = abs(weight)
+        let sign = weight < 0 ? "-" : ""
+        
+        if absWeight < 1.0 {
+            return String(format: "%@%.2f", sign, absWeight)
+        } else if absWeight < 10.0 {
+            return String(format: "%@%.1f", sign, absWeight)
+        } else {
+            return String(format: "%@%.0f", sign, absWeight)
+        }
     }
     
     private func animateWeightChange() {
@@ -188,12 +204,24 @@ struct WeightDisplaySwiftUIView: View {
     }
     
     private var formattedWeight: String {
-        if weight < 1.0 {
-            return String(format: "%.2f", weight)
-        } else if weight < 10.0 {
-            return String(format: "%.1f", weight)
+        // Handle special values
+        if weight.isNaN {
+            return "---"
+        }
+        if weight.isInfinite {
+            return weight > 0 ? "∞" : "-∞"
+        }
+        
+        // Use absolute value for formatting logic, then add sign back
+        let absWeight = abs(weight)
+        let sign = weight < 0 ? "-" : ""
+        
+        if absWeight < 1.0 {
+            return String(format: "%@%.2f", sign, absWeight)
+        } else if absWeight < 10.0 {
+            return String(format: "%@%.1f", sign, absWeight)
         } else {
-            return String(format: "%.0f", weight)
+            return String(format: "%@%.0f", sign, absWeight)
         }
     }
     
