@@ -118,9 +118,17 @@ class TrackpadMonitor {
     }
     
     private func convertPressureToWeight(_ pressure: Double) -> Double {
+        // Handle invalid pressure values
+        if pressure.isNaN || pressure.isInfinite {
+            return 0.0
+        }
+        
+        // Clamp pressure to reasonable bounds
+        let clampedPressure = max(0.0, min(pressure, 2.0))
+        
         // Convert normalized pressure (0.0-1.0) to weight in grams
         // This would need calibration based on actual trackpad characteristics
-        let baseWeight = pressure * 500.0 // Max 500g for demonstration
+        let baseWeight = clampedPressure * 500.0 // Max 500g for demonstration
         
         // Apply calibration
         let calibratedWeight = (baseWeight - calibrationOffset) * calibrationScale
@@ -186,8 +194,16 @@ class ForceTrackpadMonitor {
     }
     
     private func convertPressureToWeight(_ pressure: Double) -> Double {
+        // Handle invalid pressure values
+        if pressure.isNaN || pressure.isInfinite {
+            return 0.0
+        }
+        
+        // Clamp pressure to reasonable bounds (Force Touch pressure can exceed 1.0)
+        let clampedPressure = max(0.0, min(pressure, 3.0))
+        
         // Force Touch pressure ranges from 0.0 to 1.0+
-        let baseWeight = pressure * 300.0 // Scale to reasonable weight range
+        let baseWeight = clampedPressure * 300.0 // Scale to reasonable weight range
         let calibratedWeight = (baseWeight - calibrationOffset)
         
         return max(0.0, calibratedWeight)

@@ -130,6 +130,10 @@ class WeightScaleDemo {
     private func addWeight() {
         let additionalWeight = Double.random(in: 5.0...50.0)
         currentWeight += additionalWeight
+        
+        // Prevent extremely large weights
+        currentWeight = min(currentWeight, 10000.0)
+        
         print("Added \(formatWeight(additionalWeight)) - Total: \(formatWeight(currentWeight))")
     }
     
@@ -156,6 +160,14 @@ class WeightScaleDemo {
     }
     
     private func formatWeight(_ weight: Double) -> String {
+        // Handle special values
+        if weight.isNaN {
+            return "---g"
+        }
+        if weight.isInfinite {
+            return weight > 0 ? "∞g" : "-∞g"
+        }
+        
         return String(format: "%.1fg", weight)
     }
 }
