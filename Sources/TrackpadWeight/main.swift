@@ -11,14 +11,19 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     var weightLogger: WeightLogger?
     var autoTareManager: AutoTareManager?
     var comparisonManager: ComparisonManager?
+    var compactWidget: CompactWeightWidget?
+    var apiServer: APIServer?
     
     func applicationDidFinishLaunching(_ notification: Notification) {
         setupWeightLogger()
         setupAutoTare()
         setupComparisonManager()
+        setupCompactWidget()
+        setupAPIServer()
         setupStatusBar()
         setupWindow()
         setupThemeNotifications()
+        setupAPINotifications()
         startTrackpadMonitoring()
     }
     
@@ -42,6 +47,29 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             print("Comparison Status: \(status)")
         }
         print("ComparisonManager initialized: \(comparisonManager?.getStatusDescription() ?? "unknown")")
+    }
+    
+    private func setupCompactWidget() {
+        compactWidget = CompactWeightWidget()
+        
+        // Show widget if it was visible when app was last closed
+        if compactWidget?.isWidgetVisible() == true {
+            compactWidget?.showWidget()
+        }
+        
+        print("CompactWeightWidget initialized: \(compactWidget?.getStatusDescription() ?? "unknown")")
+    }
+    
+    private func setupAPIServer() {
+        apiServer = APIServer()
+        apiServer?.setDataProviders(
+            weightLogger: weightLogger,
+            comparisonManager: comparisonManager,
+            autoTareManager: autoTareManager,
+            compactWidget: compactWidget
+        )
+        
+        print("APIServer initialized: \(apiServer?.getStatusDescription() ?? "unknown")")
     }
     
     private func setupStatusBar() {
@@ -113,6 +141,54 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         menu.addItem(comparisonMenuItem)
         menu.addItem(NSMenuItem.separator())
         
+        // Add compact widget menu items
+        let widgetToggleItem = NSMenuItem(title: "Show Compact Widget", action: #selector(toggleCompactWidget), keyEquivalent: "")
+        widgetToggleItem.state = compactWidget?.isWidgetVisible() == true ? .on : .off
+        menu.addItem(widgetToggleItem)
+        
+        let widgetSubmenu = NSMenu()
+        
+        // Position submenu
+        let positionSubmenu = NSMenu()
+        for position in CompactWeightWidget.WidgetPosition.allCases {
+            let item = NSMenuItem(title: position.displayName, action: #selector(selectWidgetPosition(_:)), keyEquivalent: "")
+            item.representedObject = position
+            item.state = compactWidget?.getPosition() == position ? .on : .off
+            positionSubmenu.addItem(item)
+        }
+        let positionMenuItem = NSMenuItem(title: "Position", action: nil, keyEquivalent: "")
+        positionMenuItem.submenu = positionSubmenu
+        widgetSubmenu.addItem(positionMenuItem)
+        
+        // Size submenu
+        let sizeSubmenu = NSMenu()
+        for size in CompactWeightWidget.WidgetSize.allCases {
+            let item = NSMenuItem(title: size.displayName, action: #selector(selectWidgetSize(_:)), keyEquivalent: "")
+            item.representedObject = size
+            item.state = compactWidget?.getCurrentSize() == size ? .on : .off
+            sizeSubmenu.addItem(item)
+        }
+        let sizeMenuItem = NSMenuItem(title: "Size", action: nil, keyEquivalent: "")
+        sizeMenuItem.submenu = sizeSubmenu
+        widgetSubmenu.addItem(sizeMenuItem)
+        
+        widgetSubmenu.addItem(NSMenuItem.separator())
+        widgetSubmenu.addItem(NSMenuItem(title: "Widget Settings...", action: #selector(showWidgetSettings), keyEquivalent: ""))
+        
+        let widgetMenuItem = NSMenuItem(title: "Widget Options", action: nil, keyEquivalent: "")
+        widgetMenuItem.submenu = widgetSubmenu
+        menu.addItem(widgetMenuItem)
+        menu.addItem(NSMenuItem.separator())
+        
+        // Add API server menu items
+        let apiToggleItem = NSMenuItem(title: "API Server", action: #selector(toggleAPIServer), keyEquivalent: "")
+        apiToggleItem.state = apiServer?.isServerRunning() == true ? .on : .off
+        menu.addItem(apiToggleItem)
+        
+        let apiStatusItem = NSMenuItem(title: "API Settings...", action: #selector(showAPISettings), keyEquivalent: "")
+        menu.addItem(apiStatusItem)
+        menu.addItem(NSMenuItem.separator())
+        
         let loggingToggleItem = NSMenuItem(title: "Enable Logging", action: #selector(toggleLogging), keyEquivalent: "")
         loggingToggleItem.state = weightLogger?.isLogging() == true ? .on : .off
         menu.addItem(loggingToggleItem)
@@ -149,6 +225,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
                 
                 // Process weight for comparison
                 self?.comparisonManager?.processWeight(weight)
+                
+                // Update compact widget
+                self?.compactWidget?.updateWeight(weight)
+                
+                // Update API server
+                self?.apiServer?.updateWeight(weight)
                 
                 // Log the weight reading
                 self?.weightLogger?.logWeight(weight)
@@ -245,6 +327,25 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
     
+    private func setupAPINotifications() {
+        NotificationCenter.default.addObserver(
+            forName: .apiCalibrateRequest,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.trackpadMonitor?.calibrate()
+        }
+        
+        NotificationCenter.default.addObserver(
+            forName: .apiTareRequest,
+            object: nil,
+            queue: .main
+        ) { [weak self] notification in
+            let itemName = notification.object as? String ?? "API Item"
+            self?.comparisonManager?.tareForComparison(name: itemName)
+        }
+    }
+    
     private func updateUIForThemeChange() {
         // Update window appearance
         window?.contentView?.applyTheme()
@@ -285,6 +386,36 @@ class AppDelegate: NSObject, NSApplicationDelegate {
             
             if item.title == "Comparison Mode" {
                 item.state = comparisonManager?.isInComparisonMode() == true ? .on : .off
+            }
+            
+            if item.title == "Show Compact Widget" || item.title == "Hide Compact Widget" {
+                item.state = compactWidget?.isWidgetVisible() == true ? .on : .off
+                item.title = compactWidget?.isWidgetVisible() == true ? "Hide Compact Widget" : "Show Compact Widget"
+            }
+            
+            // Update widget submenu checkmarks
+            if item.title == "Widget Options", let submenu = item.submenu {
+                for subItem in submenu.items {
+                    if subItem.title == "Position", let positionSubmenu = subItem.submenu {
+                        for positionItem in positionSubmenu.items {
+                            if let position = positionItem.representedObject as? CompactWeightWidget.WidgetPosition {
+                                positionItem.state = compactWidget?.getPosition() == position ? .on : .off
+                            }
+                        }
+                    }
+                    
+                    if subItem.title == "Size", let sizeSubmenu = subItem.submenu {
+                        for sizeItem in sizeSubmenu.items {
+                            if let size = sizeItem.representedObject as? CompactWeightWidget.WidgetSize {
+                                sizeItem.state = compactWidget?.getCurrentSize() == size ? .on : .off
+                            }
+                        }
+                    }
+                }
+            }
+            
+            if item.title == "API Server" {
+                item.state = apiServer?.isServerRunning() == true ? .on : .off
             }
         }
     }
@@ -410,12 +541,117 @@ class AppDelegate: NSObject, NSApplicationDelegate {
         showAlert(title: "Comparison Status", message: fullStatus)
     }
     
+    @objc private func toggleCompactWidget() {
+        compactWidget?.toggleWidget()
+        updateMenuCheckmarks()
+        
+        let status = compactWidget?.isWidgetVisible() == true ? "shown" : "hidden"
+        showAlert(title: "Compact Widget \(status.capitalized)", 
+                 message: "The compact weight display widget has been \(status).")
+    }
+    
+    @objc private func selectWidgetPosition(_ sender: NSMenuItem) {
+        guard let position = sender.representedObject as? CompactWeightWidget.WidgetPosition else { return }
+        compactWidget?.setPosition(position)
+        updateMenuCheckmarks()
+    }
+    
+    @objc private func selectWidgetSize(_ sender: NSMenuItem) {
+        guard let size = sender.representedObject as? CompactWeightWidget.WidgetSize else { return }
+        compactWidget?.setSize(size)
+        updateMenuCheckmarks()
+    }
+    
+    @objc private func showWidgetSettings() {
+        let status = compactWidget?.getDetailedStatus() ?? "Compact widget not available"
+        
+        let alert = NSAlert()
+        alert.messageText = "Widget Settings"
+        alert.informativeText = status
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Toggle Auto-Hide")
+        
+        let response = alert.runModal()
+        if response == .alertSecondButtonReturn {
+            let currentAutoHide = compactWidget?.isAutoHideEnabled() ?? false
+            compactWidget?.setAutoHide(!currentAutoHide)
+            
+            let newStatus = compactWidget?.isAutoHideEnabled() == true ? "enabled" : "disabled"
+            showAlert(title: "Auto-Hide \(newStatus.capitalized)", 
+                     message: "Widget auto-hide has been \(newStatus).")
+        }
+    }
+    
+    @objc private func toggleAPIServer() {
+        let isCurrentlyRunning = apiServer?.isServerRunning() ?? false
+        
+        if isCurrentlyRunning {
+            apiServer?.stopServer()
+        } else {
+            let success = apiServer?.startServer() ?? false
+            if !success {
+                showAlert(title: "API Server Failed", message: "Could not start API server. Port may be in use.")
+                return
+            }
+        }
+        
+        updateMenuCheckmarks()
+        
+        let status = apiServer?.isServerRunning() == true ? "started" : "stopped"
+        let port = apiServer?.getPort() ?? 8080
+        showAlert(title: "API Server \(status.capitalized)", 
+                 message: "API server has been \(status).\(status == "started" ? " Available at http://localhost:\(port)" : "")")
+    }
+    
+    @objc private func showAPISettings() {
+        let status = apiServer?.getDetailedStatus() ?? "API server not available"
+        
+        let alert = NSAlert()
+        alert.messageText = "API Server Settings"
+        alert.informativeText = status
+        alert.addButton(withTitle: "OK")
+        alert.addButton(withTitle: "Open in Browser")
+        alert.addButton(withTitle: "Configure Webhook")
+        
+        let response = alert.runModal()
+        
+        if response == .alertSecondButtonReturn {
+            // Open API in browser
+            let port = apiServer?.getPort() ?? 8080
+            if let url = URL(string: "http://localhost:\(port)") {
+                NSWorkspace.shared.open(url)
+            }
+        } else if response == .alertThirdButtonReturn {
+            // Configure webhook
+            let webhookAlert = NSAlert()
+            webhookAlert.messageText = "Configure Webhook"
+            webhookAlert.informativeText = "Enter webhook URL (leave empty to disable):"
+            webhookAlert.addButton(withTitle: "Set")
+            webhookAlert.addButton(withTitle: "Cancel")
+            
+            let textField = NSTextField(frame: NSRect(x: 0, y: 0, width: 300, height: 24))
+            textField.stringValue = apiServer?.getWebhookURL() ?? ""
+            textField.placeholderString = "https://example.com/webhook"
+            webhookAlert.accessoryView = textField
+            
+            let webhookResponse = webhookAlert.runModal()
+            if webhookResponse == .alertFirstButtonReturn {
+                let url = textField.stringValue.isEmpty ? nil : textField.stringValue
+                apiServer?.setWebhookURL(url)
+                
+                let message = url != nil ? "Webhook URL set successfully" : "Webhook disabled"
+                showAlert(title: "Webhook Configured", message: message)
+            }
+        }
+    }
+    
     @objc private func quit() {
         NSApp.terminate(nil)
     }
     
     func applicationWillTerminate(_ notification: Notification) {
         trackpadMonitor?.stopMonitoring()
+        apiServer?.stopServer()
         weightLogger = nil // Triggers cleanup and auto-save
     }
 }
