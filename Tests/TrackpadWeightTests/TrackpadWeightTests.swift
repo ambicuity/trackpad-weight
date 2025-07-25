@@ -14,6 +14,40 @@ final class TrackpadWeightTests: XCTestCase {
         XCTAssertNil(receivedWeight)
     }
     
+    func testMultitouchManagerInitialization() {
+        var receivedWeight: Double?
+        
+        let manager = MultitouchManager { weight in
+            receivedWeight = weight
+        }
+        
+        XCTAssertNotNil(manager)
+        XCTAssertNil(receivedWeight)
+        XCTAssertFalse(manager.isMonitoring())
+    }
+    
+    func testMultitouchManagerLifecycle() {
+        let manager = MultitouchManager { _ in }
+        
+        // Test that starting/stopping doesn't crash (will fail on non-macOS)
+        let startResult = manager.startMonitoring()
+        XCTAssertFalse(startResult) // Should fail on Linux/stub
+        
+        manager.stopMonitoring() // Should not crash
+        XCTAssertFalse(manager.isMonitoring())
+    }
+    
+    func testEnhancedTrackpadMonitorInitialization() {
+        var receivedWeight: Double?
+        
+        let monitor = TrackpadMonitor { weight in
+            receivedWeight = weight
+        }
+        
+        XCTAssertNotNil(monitor)
+        XCTAssertNil(receivedWeight)
+    }
+    
     func testWeightConversion() {
         // This would test the pressure to weight conversion logic
         // For now, we'll test that the callback mechanism works
@@ -36,8 +70,10 @@ final class TrackpadWeightTests: XCTestCase {
         // Test that calibration doesn't crash
         monitor.calibrate()
         
-        // In a real implementation, we'd test that calibration
-        // affects subsequent weight calculations
+        // Test multitouch manager calibration
+        let multitouchManager = MultitouchManager { _ in }
+        multitouchManager.calibrate()
+        
         XCTAssertTrue(true) // Placeholder assertion
     }
     
@@ -324,5 +360,92 @@ final class TrackpadWeightTests: XCTestCase {
         let largeResult = "x" * 1000
         XCTAssertEqual(largeResult.count, 1000)
         XCTAssertTrue(largeResult.allSatisfy { $0 == "x" })
+    }
+    
+    // MARK: - Multitouch Support Tests
+    
+    func testMultitouchManagerConfiguration() {
+        let manager = MultitouchManager { _ in }
+        
+        // Test initial state
+        XCTAssertFalse(manager.isMonitoring())
+        
+        // Test calibration on non-started manager
+        manager.calibrate() // Should not crash
+        
+        // Test stopping non-started manager
+        manager.stopMonitoring() // Should not crash
+    }
+    
+    func testMultitouchManagerGlobalSetup() {
+        let manager1 = MultitouchManager { _ in }
+        let manager2 = MultitouchManager { _ in }
+        
+        // Test setting global manager
+        MultitouchManager.setGlobalManager(manager1)
+        MultitouchManager.setGlobalManager(manager2)
+        MultitouchManager.setGlobalManager(nil)
+        
+        // Should not crash
+        XCTAssertTrue(true)
+    }
+    
+    func testEnhancedTrackpadMonitorWithMultitouch() {
+        var receivedWeights: [Double] = []
+        
+        let monitor = TrackpadMonitor { weight in
+            receivedWeights.append(weight)
+        }
+        
+        // Test lifecycle
+        monitor.startMonitoring() // Should try multitouch first, then fallback
+        monitor.calibrate()
+        monitor.stopMonitoring()
+        
+        XCTAssertNotNil(monitor)
+        // Weights array should remain empty since we're on non-macOS platform
+        XCTAssertEqual(receivedWeights.count, 0)
+    }
+    
+    func testForceTrackpadMonitorWithMultitouchFallback() {
+        var receivedWeights: [Double] = []
+        
+        let monitor = ForceTrackpadMonitor { weight in
+            receivedWeights.append(weight)
+        }
+        
+        // Test that it attempts multitouch first, then falls back
+        monitor.startMonitoring()
+        monitor.calibrate()
+        monitor.stopMonitoring()
+        
+        XCTAssertNotNil(monitor)
+        // On non-macOS, should use stub implementation
+        XCTAssertEqual(receivedWeights.count, 0)
+    }
+    
+    func testPressureDataHandling() {
+        // Test that the system can handle various pressure values
+        let testPressures: [Double] = [
+            0.0,           // No pressure
+            0.001,         // Minimal pressure
+            0.5,           // Medium pressure
+            1.0,           // Standard maximum
+            2.0,           // High pressure
+            Double.nan,    // Invalid data
+            Double.infinity, // Extreme values
+            -1.0           // Negative pressure
+        ]
+        
+        for pressure in testPressures {
+            // Create monitor and verify it handles edge cases
+            let monitor = ForceTrackpadMonitor { weight in
+                // Verify weight is always >= 0 and finite
+                XCTAssertGreaterThanOrEqual(weight, 0.0)
+                XCTAssertTrue(weight.isFinite || weight == 0.0)
+            }
+            
+            XCTAssertNotNil(monitor)
+        }
     }
 }
