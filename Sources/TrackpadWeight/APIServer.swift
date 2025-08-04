@@ -13,7 +13,7 @@ import Network
 
 class APIServer: NSObject {
     private var listener: NWListener?
-    private var connections: Set<NWConnection> = []
+    private var connections: [NWConnection] = []
     private var isRunning: Bool = false
     private var port: UInt16 = 8080
     
@@ -159,7 +159,7 @@ class APIServer: NSObject {
     // MARK: - Private Methods
     
     private func handleNewConnection(_ connection: NWConnection) {
-        connections.insert(connection)
+        connections.append(connection)
         
         connection.start(queue: .main)
         
@@ -169,7 +169,7 @@ class APIServer: NSObject {
             }
             
             if error != nil || isComplete {
-                self?.connections.remove(connection)
+                self?.connections.removeAll { $0 === connection }
                 connection.cancel()
             }
         }
@@ -229,7 +229,7 @@ class APIServer: NSObject {
     }
     
     private func handleGetWeight(connection: NWConnection) {
-        let response = [
+        let response: [String: Any] = [
             "weight": currentWeight,
             "unit": "grams",
             "timestamp": ISO8601DateFormatter().string(from: Date())
@@ -300,7 +300,7 @@ class APIServer: NSObject {
             NotificationCenter.default.post(name: .apiCalibrateRequest, object: nil)
         }
         
-        let response = [
+        let response: [String: Any] = [
             "success": true,
             "message": "Calibration requested"
         ]
@@ -322,7 +322,7 @@ class APIServer: NSObject {
             NotificationCenter.default.post(name: .apiTareRequest, object: itemName)
         }
         
-        let response = [
+        let response: [String: Any] = [
             "success": true,
             "message": "Tare requested for \(itemName)"
         ]
@@ -343,8 +343,8 @@ class APIServer: NSObject {
                     "difference": comp.difference,
                     "percent_difference": comp.percentDifference,
                     "within_tolerance": comp.isWithinTolerance
-                ]
-            }
+                ] as [String: Any]
+            } as Any
         ]
         
         sendJSONResponse(connection: connection, data: response)
@@ -362,7 +362,7 @@ class APIServer: NSObject {
         
         comparisonManager?.setReferenceWeight(name: name, weight: weight)
         
-        let response = [
+        let response: [String: Any] = [
             "success": true,
             "message": "Reference weight set for \(name)"
         ]
@@ -506,7 +506,7 @@ class APIServer: NSObject {
     private func sendWebhook(url: String, weight: Double) {
         guard let webhookURL = URL(string: url) else { return }
         
-        let payload = [
+        let payload: [String: Any] = [
             "timestamp": ISO8601DateFormatter().string(from: Date()),
             "weight": weight,
             "unit": "grams",

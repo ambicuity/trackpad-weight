@@ -42,7 +42,7 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     
     private func setupComparisonManager() {
         comparisonManager = ComparisonManager()
-        comparisonManager?.setStatusCallback { [weak self] status in
+        comparisonManager?.setStatusCallback { _ in
             // Update UI with comparison status if needed
             print("Comparison Status: \(status)")
         }

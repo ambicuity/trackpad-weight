@@ -379,7 +379,7 @@ class WeightLogger {
                           let weight = dict["weight"] as? Double,
                           let sessionIdString = dict["sessionId"] as? String,
                           let sessionId = UUID(uuidString: sessionIdString),
-                          let date = ISO8601DateFormatter().date(from: timestamp) else {
+                          let _ = ISO8601DateFormatter().date(from: timestamp) else {
                         return nil
                     }
                     
