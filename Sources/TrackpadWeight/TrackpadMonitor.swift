@@ -131,7 +131,7 @@ class ForceTrackpadMonitor {
             
             // Set up fallback timer in case multitouch doesn't work
             fallbackTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
-                if !self?.hasReceivedMultitouchData == true {
+                if self?.hasReceivedMultitouchData != true {
                     print("ForceTrackpadMonitor: No multitouch data received after 3 seconds, falling back to NSEvent")
                     self?.multitouchManager?.stopMonitoring()
                     self?.isUsingMultitouch = false
