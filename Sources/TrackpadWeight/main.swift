@@ -243,7 +243,12 @@ class AppDelegate: NSObject, NSApplicationDelegate {
     }
     
     private func updateWeight(_ weight: Double) {
-        statusBarItem?.button?.title = String(format: "⚖️ %.1fg", weight)
+        let displayText = String(format: "⚖️ %.1fg", weight)
+        statusBarItem?.button?.title = displayText
+        
+        #if DEBUG
+        print("AppDelegate: Updated taskbar weight display to: \(displayText)")
+        #endif
     }
     
     @objc private func showWindow() {

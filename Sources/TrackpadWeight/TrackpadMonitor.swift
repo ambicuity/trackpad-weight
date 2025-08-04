@@ -19,14 +19,10 @@ class TrackpadMonitor {
         
         // Create multitouch manager with our weight callback
         multitouchManager = MultitouchManager(pressureCallback: weightCallback)
-        
-        // Set as global manager for callback routing
-        MultitouchManager.setGlobalManager(multitouchManager)
     }
     
     deinit {
         stopMonitoring()
-        MultitouchManager.setGlobalManager(nil)
     }
     
     func startMonitoring() {
@@ -107,12 +103,19 @@ class ForceTrackpadMonitor {
     private let weightCallback: (Double) -> Void
     private var calibrationOffset: Double = 0.0
     private var isUsingMultitouch = false
+    private var hasReceivedMultitouchData = false
+    private var fallbackTimer: Timer?
     
     init(weightCallback: @escaping (Double) -> Void) {
         self.weightCallback = weightCallback
         
         // Try to create multitouch manager first
-        multitouchManager = MultitouchManager(pressureCallback: weightCallback)
+        multitouchManager = MultitouchManager(pressureCallback: { [weak self] weight in
+            self?.hasReceivedMultitouchData = true
+            self?.fallbackTimer?.invalidate()
+            self?.fallbackTimer = nil
+            weightCallback(weight)
+        })
     }
     
     deinit {
@@ -125,10 +128,21 @@ class ForceTrackpadMonitor {
            multitouchManager.startMonitoring() {
             isUsingMultitouch = true
             print("ForceTrackpadMonitor: Using enhanced multitouch support")
+            
+            // Set up fallback timer in case multitouch doesn't work
+            fallbackTimer = Timer.scheduledTimer(withTimeInterval: 3.0, repeats: false) { [weak self] _ in
+                if !self?.hasReceivedMultitouchData == true {
+                    print("ForceTrackpadMonitor: No multitouch data received after 3 seconds, falling back to NSEvent")
+                    self?.multitouchManager?.stopMonitoring()
+                    self?.isUsingMultitouch = false
+                    self?.startNSEventMonitoring()
+                }
+            }
             return
         }
         
         // Fallback to NSEvent Force Touch monitoring
+        print("ForceTrackpadMonitor: Multitouch failed, falling back to NSEvent Force Touch")
         isUsingMultitouch = false
         startNSEventMonitoring()
     }
@@ -148,6 +162,9 @@ class ForceTrackpadMonitor {
     }
     
     func stopMonitoring() {
+        fallbackTimer?.invalidate()
+        fallbackTimer = nil
+        
         if isUsingMultitouch {
             multitouchManager?.stopMonitoring()
         } else {
@@ -161,7 +178,11 @@ class ForceTrackpadMonitor {
     
     private func handlePressureEvent(_ event: NSEvent) {
         let pressure = event.pressure
-        _ = event.stage
+        let stage = event.stage
+        
+        #if DEBUG
+        print("ForceTrackpadMonitor: NSEvent - Pressure: \(pressure), Stage: \(stage)")
+        #endif
         
         // Convert pressure to weight
         let weight = convertPressureToWeight(Double(pressure))
@@ -178,10 +199,19 @@ class ForceTrackpadMonitor {
         let clampedPressure = max(0.0, min(pressure, 3.0))
         
         // Force Touch pressure ranges from 0.0 to 1.0+
-        let baseWeight = clampedPressure * 300.0 // Scale to reasonable weight range
+        // Scale to weight in grams - improved scaling for better sensitivity
+        let baseWeight = clampedPressure * 500.0  // Increased from 300.0 for better detection
         let calibratedWeight = (baseWeight - calibrationOffset)
         
-        return max(0.0, calibratedWeight)
+        let finalWeight = max(0.0, calibratedWeight)
+        
+        #if DEBUG
+        if pressure > 0 {
+            print("ForceTrackpadMonitor: Pressure \(pressure) -> Weight \(finalWeight)g (base: \(baseWeight), offset: \(calibrationOffset))")
+        }
+        #endif
+        
+        return finalWeight
     }
     
     func calibrate() {
