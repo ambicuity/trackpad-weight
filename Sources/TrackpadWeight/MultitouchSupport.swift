@@ -104,8 +104,8 @@ class MultitouchManager {
     private var activeTouches: [Int32: MTTouch] = [:]
     
     // Configuration
-    private let pressureMultiplier: Double = 1.0  // Pressure is already in grams according to requirements
-    private let minimumPressureThreshold: Double = 0.1
+    private let pressureMultiplier: Double = 100.0  // Increase multiplier for better sensitivity
+    private let minimumPressureThreshold: Double = 0.05  // Lower threshold for better detection
     
     init(pressureCallback: @escaping (Double) -> Void) {
         self.pressureCallback = pressureCallback
@@ -120,11 +120,15 @@ class MultitouchManager {
     func startMonitoring() -> Bool {
         guard !isRunning else { return true }
         
+        print("MultitouchManager: Attempting to start multitouch monitoring...")
+        
         // Create default multitouch device
         guard let device = MTDeviceCreateDefault() else {
             print("MultitouchManager: Failed to create default multitouch device")
             return false
         }
+        
+        print("MultitouchManager: Created multitouch device successfully")
         
         // Verify this is a built-in trackpad
         guard MTDeviceIsBuiltIn(device) else {
@@ -133,14 +137,28 @@ class MultitouchManager {
             return false
         }
         
+        print("MultitouchManager: Verified device is built-in trackpad")
+        
         self.device = device
         
+        // Set this as the global manager before registering callback
+        MultitouchManager.setGlobalManager(self)
+        
         // Register callback for touch events
+        print("MultitouchManager: Registering touch callback...")
         MTRegisterContactFrameCallback(device, touchCallback)
+        
+        print("MultitouchManager: Starting device monitoring...")
         MTDeviceStart(device, 0)
         
         isRunning = true
         print("MultitouchManager: Started monitoring trackpad touches")
+        
+        // Test with a small delay to see if callbacks start working
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            print("MultitouchManager: Monitoring active for 1 second, callbacks should be working now")
+        }
+        
         return true
     }
     
@@ -149,6 +167,9 @@ class MultitouchManager {
         
         MTDeviceStop(device)
         MTDeviceRelease(device)
+        
+        // Clear global manager
+        MultitouchManager.setGlobalManager(nil)
         
         self.device = nil
         isRunning = false
@@ -175,13 +196,35 @@ class MultitouchManager {
         var totalPressure: Double = 0.0
         
         for touch in activeTouches.values {
-            // Only count touches that are actually touching the surface
-            if touch.state == 4 { // MT_TOUCH_STATE_TOUCHING
+            // Debug: Log touch state and pressure values
+            #if DEBUG
+            print("MultitouchManager: Touch ID \(touch.identifier), State: \(touch.state), Pressure: \(touch.pressure), Density: \(touch.density)")
+            #endif
+            
+            // Accept multiple touch states that indicate actual contact
+            // State 4 = MT_TOUCH_STATE_TOUCHING, but other states might also have valid pressure
+            if touch.state >= 3 && touch.state <= 7 { // More inclusive state range
                 // Pressure from MultitouchSupport is already in grams according to requirements
                 let touchPressure = Double(touch.pressure) * pressureMultiplier
-                totalPressure += max(0, touchPressure)
+                
+                // Also try using density as an alternative pressure source
+                let densityPressure = Double(touch.density) * pressureMultiplier
+                
+                // Use whichever gives a higher reading
+                let effectivePressure = max(touchPressure, densityPressure)
+                totalPressure += max(0, effectivePressure)
+                
+                #if DEBUG
+                print("MultitouchManager: Added pressure: \(effectivePressure)g (from pressure: \(touchPressure), density: \(densityPressure))")
+                #endif
             }
         }
+        
+        #if DEBUG
+        if !activeTouches.isEmpty {
+            print("MultitouchManager: Total active touches: \(activeTouches.count), Total pressure: \(totalPressure)g")
+        }
+        #endif
         
         return totalPressure
     }
@@ -209,6 +252,12 @@ class MultitouchManager {
         // Apply minimum threshold to reduce noise
         let finalWeight = calibratedWeight < minimumPressureThreshold ? 0.0 : calibratedWeight
         
+        #if DEBUG
+        if totalPressure > 0 || numTouches > 0 {
+            print("MultitouchManager: Frame - Touches: \(numTouches), Total pressure: \(totalPressure)g, Calibrated: \(calibratedWeight)g, Final: \(finalWeight)g")
+        }
+        #endif
+        
         pressureCallback(finalWeight)
     }
 }
@@ -220,8 +269,15 @@ class MultitouchManager {
 private var globalMultitouchManager: MultitouchManager?
 
 private let touchCallback: MTContactCallbackFunction = { device, touchData, numTouches, timestamp, frame in
+    #if DEBUG
+    print("MultitouchSupport: Global callback received - Device: \(device), Touches: \(numTouches), Timestamp: \(timestamp)")
+    #endif
+    
     guard let manager = globalMultitouchManager,
           numTouches >= 0 else {
+        #if DEBUG
+        print("MultitouchSupport: No global manager or invalid touch count")
+        #endif
         return 0
     }
     
