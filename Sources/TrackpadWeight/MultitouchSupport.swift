@@ -136,12 +136,6 @@ class MultitouchManager {
         self.device = device
         
         // Register callback for touch events
-        let callback: MTContactCallbackFunction = { device, touchData, numTouches, timestamp, frame in
-            // Extract self from device context (this is a simplified approach)
-            // In a real implementation, we'd need to properly manage the context
-            return 0
-        }
-        
         MTRegisterContactFrameCallback(device, touchCallback)
         MTDeviceStart(device, 0)
         
@@ -192,7 +186,7 @@ class MultitouchManager {
         return totalPressure
     }
     
-    private func processTouchFrame(touches: UnsafePointer<MTTouch>, numTouches: Int32, timestamp: Double) {
+    internal func processTouchFrame(touches: UnsafePointer<MTTouch>, numTouches: Int32, timestamp: Double) {
         // Update active touches
         var currentTouchIds: Set<Int32> = []
         
