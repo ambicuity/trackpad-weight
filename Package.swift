@@ -16,7 +16,14 @@ let package = Package(
         .executableTarget(
             name: "TrackpadWeight",
             dependencies: [],
-            path: "Sources"
+            path: "Sources",
+            linkerSettings: [
+                .linkedFramework("MultitouchSupport", .when(platforms: [.macOS])),
+                .unsafeFlags([
+                    "-Xlinker", "-F/System/Library/PrivateFrameworks",
+                    "-Xlinker", "-framework", "-Xlinker", "MultitouchSupport"
+                ], .when(platforms: [.macOS]))
+            ]
         ),
         .testTarget(
             name: "TrackpadWeightTests",
