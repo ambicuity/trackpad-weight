@@ -220,12 +220,11 @@ class MultitouchManager {
 private var globalMultitouchManager: MultitouchManager?
 
 private let touchCallback: MTContactCallbackFunction = { device, touchData, numTouches, timestamp, frame in
-    guard let manager = globalMultitouchManager,
-          let touches = touchData else {
+    guard let manager = globalMultitouchManager else {
         return 0
     }
     
-    manager.processTouchFrame(touches: touches, numTouches: numTouches, timestamp: timestamp)
+    manager.processTouchFrame(touches: touchData, numTouches: numTouches, timestamp: timestamp)
     return 0
 }
 
