@@ -315,7 +315,7 @@ extension Notification.Name {
 // MARK: - Theme-Aware UI Helpers
 
 extension NSView {
-    func applyTheme() {
+    @objc func applyTheme() {
         let theme = ThemeManager.shared
         
         // Apply background color if this is a container view
@@ -331,7 +331,7 @@ extension NSView {
 }
 
 extension NSTextField {
-    func applyTheme() {
+    override func applyTheme() {
         let theme = ThemeManager.shared
         
         // Apply text color based on current settings
@@ -357,7 +357,7 @@ extension NSTextField {
 }
 
 extension NSButton {
-    func applyTheme() {
+    override func applyTheme() {
         let theme = ThemeManager.shared
         
         // Update button appearance based on theme

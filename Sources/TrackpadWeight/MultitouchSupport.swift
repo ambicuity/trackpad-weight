@@ -12,7 +12,7 @@ import CoreFoundation
 // MARK: - Private MultitouchSupport Framework Types
 
 typealias MTDeviceRef = UnsafeMutableRawPointer
-typealias MTContactCallbackFunction = @convention(c) (MTDeviceRef, UnsafeMutablePointer<MTTouch>, Int32, Double, Int32) -> Int32
+typealias MTContactCallbackFunction = (MTDeviceRef, UnsafeMutablePointer<MTTouch>, Int32, Double, Int32) -> Int32
 
 // Touch data structure matching the private MultitouchSupport framework
 struct MTTouch {
@@ -240,10 +240,6 @@ private let touchCallback: MTContactCallbackFunction = { device, touchData, numT
 extension MultitouchManager {
     static func setGlobalManager(_ manager: MultitouchManager?) {
         globalMultitouchManager = manager
-    }
-    
-    fileprivate func processTouchFrame(touches: UnsafePointer<MTTouch>, numTouches: Int32, timestamp: Double) {
-        processTouchFrame(touches: touches, numTouches: numTouches, timestamp: timestamp)
     }
 }
 

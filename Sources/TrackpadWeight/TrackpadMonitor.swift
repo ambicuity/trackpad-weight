@@ -161,7 +161,7 @@ class ForceTrackpadMonitor {
     
     private func handlePressureEvent(_ event: NSEvent) {
         let pressure = event.pressure
-        let stage = event.stage
+        _ = event.stage
         
         // Convert pressure to weight
         let weight = convertPressureToWeight(Double(pressure))
